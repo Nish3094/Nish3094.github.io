@@ -1,33 +1,119 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Dashboard</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nishverse Dashboard</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial;
+      background: radial-gradient(circle at top, #1e293b, #020617);
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      text-align: center;
+    }
+
+    .container {
+      max-width: 900px;
+      padding: 20px;
+    }
+
+    video {
+      width: 220px;
+      border-radius: 16px;
+      margin-bottom: 20px;
+      box-shadow: 0 0 40px rgba(34, 197, 94, 0.4);
+    }
+
+    h2 {
+      margin-bottom: 10px;
+    }
+
+    .buttons {
+      margin-top: 25px;
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border-radius: 999px;
+      font-weight: bold;
+      text-decoration: none;
+      background: #22c55e;
+      color: black;
+      transition: 0.3s;
+    }
+
+    .btn:hover {
+      background: #16a34a;
+    }
+
+    #logoutBtn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: #ef4444;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+  </style>
 </head>
+
 <body>
 
-<h2>Welcome to Nishverse Dashboard</h2>
-<p id="userInfo"></p>
+  <!-- Logout button top right -->
+  <button id="logoutBtn">Logout</button>
 
-<button id="logoutBtn">Logout</button>
+  <div class="container">
 
-<script type="module">
-  import { auth } from "./firebase.js";
-  import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    <!-- Nishverse branding -->
+    <video autoplay muted loop playsinline>
+      <source src="https://nish3094.github.io/trademark_logo.mp4" type="video/mp4">
+    </video>
 
-  const userInfo = document.getElementById("userInfo");
+    <h2>Welcome to Nishverse Dashboard</h2>
+    <p id="userInfo"></p>
 
-  onAuthStateChanged(auth, (user) => {
-    if (!user) {
-      window.location.href = "/login.html";
-    } else {
-      userInfo.innerText = "Logged in as: " + user.email;
-    }
-  });
+    <!-- Actions -->
+    <div class="buttons">
+      <a href="/resume.html" class="btn">View Resume</a>
+      <a href="https://github.com/nish3094" class="btn">GitHub Repos</a>
+    </div>
 
-  document.getElementById("logoutBtn").onclick = () => {
-    signOut(auth);
-  };
-</script>
+  </div>
+
+  <script type="module">
+    import { auth } from "./firebase.js";
+    import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+    const userInfo = document.getElementById("userInfo");
+
+    // Protect page
+    onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        window.location.href = "/";
+      } else {
+        userInfo.innerText = "Logged in as: " + (user.displayName || user.email);
+      }
+    });
+
+    // Logout
+    document.getElementById("logoutBtn").onclick = () => {
+      signOut(auth).then(() => {
+        window.location.href = "/";
+      });
+    };
+  </script>
 
 </body>
 </html>
