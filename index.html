@@ -35,58 +35,25 @@
     h1 {
       font-size: 2.8rem;
       margin-bottom: 10px;
-      letter-spacing: 0.5px;
     }
 
     p {
       color: #cbd5f5;
-      font-size: 1.15rem;
       margin-bottom: 30px;
-      line-height: 1.6;
-    }
-
-    .buttons {
-      display: flex;
-      justify-content: center;
-      gap: 15px;
-      flex-wrap: wrap;
     }
 
     .btn {
       padding: 12px 24px;
       border-radius: 999px;
-      text-decoration: none;
       font-weight: bold;
-      transition: 0.3s ease;
-    }
-
-    .primary {
+      cursor: pointer;
+      border: none;
       background: #22c55e;
       color: black;
     }
 
-    .primary: hover {
+    .btn:hover {
       background: #16a34a;
-    }
-
-    .secondary {
-      border: 1px solid #334155;
-      color: #cbd5f5;
-    }
-
-    .secondary: hover {
-      background: #1e293b;
-    }
-
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(25px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
     }
   </style>
 </head>
@@ -94,48 +61,43 @@
 <body>
   <div class="container">
 
-    <!-- 🔥 Your animation -->
     <video autoplay muted loop playsinline>
       <source src="https://nish3094.github.io/trademark_logo.mp4" type="video/mp4">
     </video>
-    <script>
-    if (window.location.hostname === "nish3094.github.io") {
-       window.location.href = "https://nishverse.com";
-      }
-    </script>
 
-    <h1>Nishanth</h1>
+    <h1>Nishverse</h1>
 
-    <p>
-      Senior Cloud Engineer • AWS • Kubernetes • Security <br>
-      Designing scalable, secure, and intelligent cloud systems.
-    </p>
+    <p>Cloud Security Intelligence Platform</p>
 
-    <div class="buttons">
-      <a href="https://github.com/nish3094" class="btn primary">GitHub</a>
-      <a href="/resume.html" class="btn primary">Resume</a>
-    </div>
+    <button id="loginBtn" class="btn">Login with GitHub</button>
 
   </div>
+
   <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, GithubAuthProvider, signInWithRedirect, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyCREdxSPT6BYh7TXISSgYPXka7fQ2xD8-8",
-    authDomain: "nishverse.firebaseapp.com"
-  };
+    const firebaseConfig = {
+      apiKey: "AIzaSyCREdxSPT6BYh7TXISSgYPXka7fQ2xD8-8",
+      authDomain: "nishverse.firebaseapp.com"
+    };
 
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const provider = new GithubAuthProvider();
 
-  onAuthStateChanged(auth, (user) => {
-    if (!user) {
-      window.location.href = "/login.html";
-    } else {
-      window.location.href = "/dashboard.html";
-    }
-  });
-</script>
+    // If already logged in → go to dashboard
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        window.location.href = "/dashboard.html";
+      }
+    });
+
+    // Login button
+    document.getElementById("loginBtn").onclick = async () => {
+      await signInWithRedirect(auth, provider);
+    };
+  </script>
+
 </body>
 </html>
