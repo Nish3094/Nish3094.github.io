@@ -1,134 +1,44 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Nishverse</title>
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import {
+  getAuth,
+  GithubAuthProvider,
+  signInWithRedirect,
+  getRedirectResult,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-  <style>
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial;
-      background: radial-gradient(circle at top, #1e293b, #020617);
-      color: white;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      text-align: center;
-    }
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "nishverse.firebaseapp.com"
+};
 
-    .container {
-      max-width: 900px;
-      padding: 20px;
-    }
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const provider = new GithubAuthProvider();
 
-    video {
-      width: 220px;
-      border-radius: 16px;
-      margin-bottom: 25px;
-      box-shadow: 0 0 40px rgba(34, 197, 94, 0.4);
-    }
+const loginBtn = document.getElementById("loginBtn");
 
-    h1 {
-      font-size: 2.8rem;
-      margin-bottom: 10px;
-    }
-
-    p {
-      color: #cbd5f5;
-      margin-bottom: 30px;
-    }
-
-    .btn {
-      padding: 12px 24px;
-      border-radius: 999px;
-      font-weight: bold;
-      cursor: pointer;
-      border: none;
-      background: #22c55e;
-      color: black;
-      transition: 0.3s;
-    }
-
-    .btn:hover {
-      background: #16a34a;
-    }
-
-    #userInfo {
-      margin-top: 20px;
-      color: #94a3b8;
-    }
-  </style>
-</head>
-
-<body>
-  <div class="container">
-
-    <video autoplay muted loop playsinline>
-      <source src="https://nish3094.github.io/trademark_logo.mp4" type="video/mp4">
-    </video>
-
-    <h1>Nishverse</h1>
-    <p>Cloud Security Intelligence Platform</p>
-
-    <!-- Login Button -->
-    <button id="loginBtn" class="btn">Login with GitHub</button>
-
-    <!-- Logged-in section -->
-    <div id="userSection" style="display:none;">
-      <p id="userInfo"></p>
-      <button id="dashboardBtn" class="btn">Go to Dashboard</button>
-      <br><br>
-      <button id="logoutBtn" class="btn">Logout</button>
-    </div>
-
-  </div>
-
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getAuth, GithubAuthProvider, signInWithRedirect, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyCREdxSPT6BYh7TXISSgYPXka7fQ2xD8-8",
-      authDomain: "nishverse.firebaseapp.com"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const provider = new GithubAuthProvider();
-
-    const loginBtn = document.getElementById("loginBtn");
-    const userSection = document.getElementById("userSection");
-    const userInfo = document.getElementById("userInfo");
-
-    // Handle login
-    loginBtn.onclick = async () => {
-      await signInWithRedirect(auth, provider);
-    };
-
-    // Handle auth state
-    onAuthStateChanged(auth, (user) => {
-      if (user) {
-        loginBtn.style.display = "none";
-        userSection.style.display = "block";
-        userInfo.innerText = "Logged in as: " + user.email;
-      } else {
-        loginBtn.style.display = "block";
-        userSection.style.display = "none";
-      }
-    });
-
-    // Go to dashboard
-    document.getElementById("dashboardBtn").onclick = () => {
+// 👉 Handle redirect result FIRST
+getRedirectResult(auth)
+  .then((result) => {
+    if (result?.user) {
+      console.log("Login successful:", result.user);
       window.location.href = "/dashboard.html";
-    };
+    }
+  })
+  .catch((error) => {
+    console.error("Redirect error:", error);
+  });
 
-    // Logout
-    document.getElementById("logoutBtn").onclick = () => {
-      signOut(auth);
-    };
-  </script>
+// 👉 Fallback: check session
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    window.location.href = "/dashboard.html";
+  }
+});
 
-</body>
-</html>
+// 👉 Login trigger
+loginBtn.onclick = async () => {
+  await signInWithRedirect(auth, provider);
+};
