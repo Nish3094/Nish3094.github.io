@@ -1,3 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nishverse</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial;
+      background: radial-gradient(circle at top, #1e293b, #020617);
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      text-align: center;
+    }
+
+    .container {
+      max-width: 900px;
+      padding: 20px;
+    }
+
+    video {
+      width: 220px;
+      border-radius: 16px;
+      margin-bottom: 25px;
+      box-shadow: 0 0 40px rgba(34, 197, 94, 0.4);
+    }
+
+    h1 {
+      font-size: 2.8rem;
+      margin-bottom: 10px;
+    }
+
+    p {
+      color: #cbd5f5;
+      margin-bottom: 30px;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border-radius: 999px;
+      font-weight: bold;
+      cursor: pointer;
+      border: none;
+      background: #22c55e;
+      color: black;
+      transition: 0.3s;
+    }
+
+    .btn:hover {
+      background: #16a34a;
+    }
+
+    #userInfo {
+      margin-top: 20px;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+
 <body>
   <div class="container">
 
@@ -8,34 +72,15 @@
     <h1>Nishverse</h1>
     <p>Cloud Security Intelligence Platform</p>
 
-    <!-- LOGIN BUTTON -->
+    <!-- Login Button -->
     <button id="loginBtn" class="btn">Login with GitHub</button>
 
-    <!-- LOGGED-IN VIEW -->
+    <!-- Logged-in section -->
     <div id="userSection" style="display:none;">
-
-      <!-- Top Right Logout -->
-      <button id="logoutBtn" style="
-        position: absolute;
-        top: 20px;
-        right: 20px;
-        padding: 8px 16px;
-        border-radius: 999px;
-        border: none;
-        background: #ef4444;
-        color: white;
-        cursor: pointer;
-      ">
-        Logout
-      </button>
-
       <p id="userInfo"></p>
-
-      <div class="buttons">
-        <a href="/resume.html" class="btn">View Resume</a>
-        <a href="https://github.com/nish3094" class="btn">GitHub Repos</a>
-      </div>
-
+      <button id="dashboardBtn" class="btn">Go to Dashboard</button>
+      <br><br>
+      <button id="logoutBtn" class="btn">Logout</button>
     </div>
 
   </div>
@@ -57,22 +102,27 @@
     const userSection = document.getElementById("userSection");
     const userInfo = document.getElementById("userInfo");
 
-    // Login
+    // Handle login
     loginBtn.onclick = async () => {
       await signInWithRedirect(auth, provider);
     };
 
-    // Auth state
+    // Handle auth state
     onAuthStateChanged(auth, (user) => {
       if (user) {
         loginBtn.style.display = "none";
         userSection.style.display = "block";
-        userInfo.innerText = "Welcome, " + (user.displayName || user.email);
+        userInfo.innerText = "Logged in as: " + user.email;
       } else {
         loginBtn.style.display = "block";
         userSection.style.display = "none";
       }
     });
+
+    // Go to dashboard
+    document.getElementById("dashboardBtn").onclick = () => {
+      window.location.href = "/dashboard.html";
+    };
 
     // Logout
     document.getElementById("logoutBtn").onclick = () => {
@@ -81,3 +131,4 @@
   </script>
 
 </body>
+</html>
