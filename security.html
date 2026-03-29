@@ -579,64 +579,17 @@ function ScoreRing({ score }) {
 const NISHVERSE_ACCOUNT_ID = "712416033858";
 
 // CloudFormation template — creates a read-only cross-account IAM role
-const CFN_TEMPLATE = JSON.stringify({
-  AWSTemplateFormatVersion: "2010-09-09",
-  Description: "Nishverse Security Posture — Cross-Account Audit Role",
-  Parameters: {
-    NishverseAccountId: {
-      Type: "String",
-      Default: NISHVERSE_ACCOUNT_ID,
-      Description: "AWS Account ID of Nishverse that will assume this role"
-    },
-    ExternalId: {
-      Type: "String",
-      Default: "nishverse-audit",
-      Description: "External ID for extra trust security — keep this value"
-    }
-  },
-  Resources: {
-    NishverseAuditRole: {
-      Type: "AWS::IAM::Role",
-      Properties: {
-        RoleName: "NishverseSecurityAuditRole",
-        Description: "Read-only cross-account role for Nishverse Security Posture scanning",
-        AssumeRolePolicyDocument: {
-          Version: "2012-10-17",
-          Statement: [{
-            Effect: "Allow",
-            Principal: { AWS: {"Fn::Sub": "arn:aws:iam::${NishverseAccountId}:root"} },
-            Action: "sts:AssumeRole",
-            Condition: { StringEquals: { "sts:ExternalId": {"Ref": "ExternalId"} } }
-          }]
-        },
-        ManagedPolicyArns: [
-          "arn:aws:iam::aws:policy/SecurityAudit",
-          "arn:aws:iam::aws:policy/ReadOnlyAccess"
-        ],
-        Tags: [
-          {Key: "CreatedBy", Value: "Nishverse"},
-          {Key: "Purpose",   Value: "SecurityPostureAudit"}
-        ]
-      }
-    }
-  },
-  Outputs: {
-    RoleArn: {
-      Description: "Paste this ARN into the Nishverse Security Posture dashboard",
-      Value: {"Fn::GetAtt": ["NishverseAuditRole", "Arn"]},
-      Export: {Name: "NishverseAuditRoleArn"}
-    },
-    ExternalId: {
-      Description: "External ID — save this for Nishverse dashboard config",
-      Value: {"Ref": "ExternalId"}
-    }
-  }
-});
+
 
 function launchCloudFormation(region = "us-east-1") {
-  const encoded = encodeURIComponent(CFN_TEMPLATE);
-  const url = `https://console.aws.amazon.com/cloudformation/home?region=${region}` +
-    `#/stacks/create/review?stackName=NishverseSecurityAuditRole&templateBody=${encoded}`;
+  const templateURL = encodeURIComponent(
+    "https://your-project.pages.dev/templates/nishverse-audit-role.json"
+  );
+
+  const url =
+    `https://console.aws.amazon.com/cloudformation/home?region=${region}` +
+    `#/stacks/create/review?stackName=NishverseSecurityAuditRole&templateURL=${templateURL}`;
+
   window.open(url, "_blank");
 }
 
