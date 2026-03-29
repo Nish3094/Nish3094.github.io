@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Nishverse</title>
-
   <style>
     body {
       margin: 0;
@@ -17,29 +16,15 @@
       height: 100vh;
       text-align: center;
     }
-
-    .container {
-      max-width: 500px;
-      padding: 40px 20px;
-    }
-
+    .container { max-width: 500px; padding: 40px 20px; }
     video {
       width: 180px;
       border-radius: 16px;
       margin-bottom: 24px;
       box-shadow: 0 0 40px rgba(34, 197, 94, 0.4);
     }
-
-    h1 {
-      font-size: 2rem;
-      margin-bottom: 10px;
-    }
-
-    p {
-      color: #94a3b8;
-      margin-bottom: 30px;
-    }
-
+    h1 { font-size: 2rem; margin-bottom: 10px; }
+    p { color: #94a3b8; margin-bottom: 30px; }
     #loginBtn {
       padding: 14px 32px;
       border-radius: 999px;
@@ -51,27 +36,58 @@
       cursor: pointer;
       transition: background 0.3s;
     }
-
-    #loginBtn:hover {
-      background: #16a34a;
-    }
+    #loginBtn:hover { background: #16a34a; }
+    #loginBtn:disabled { opacity: 0.6; cursor: not-allowed; }
   </style>
 </head>
-
 <body>
   <div class="container">
-
     <video autoplay muted loop playsinline>
       <source src="https://nish3094.github.io/trademark_logo.mp4" type="video/mp4">
     </video>
-
     <h1>Welcome to Nishverse</h1>
     <p>Sign in with GitHub to continue</p>
-
     <button id="loginBtn">Login with GitHub</button>
-
   </div>
 
-  <script type="module" src="./firebase.js"></script>
+  <script type="module">
+    import { auth, provider } from "./firebase.js";
+    import {
+      getRedirectResult,
+      onAuthStateChanged,
+      signInWithRedirect
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+    const loginBtn = document.getElementById("loginBtn");
+
+    // STEP 1: Check if we're returning from a GitHub redirect
+    // getRedirectResult MUST be awaited before onAuthStateChanged acts
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) {
+          // Successfully authenticated via redirect — go to dashboard
+          window.location.replace("/dashboard.html");
+        }
+        // No redirect result — now safe to check existing session
+        else {
+          onAuthStateChanged(auth, (user) => {
+            if (user) {
+              window.location.replace("/dashboard.html");
+            }
+            // Not logged in — show login button normally
+          });
+        }
+      })
+      .catch((error) => {
+        console.error("GitHub login error:", error.message);
+      });
+
+    // STEP 2: Trigger login on button click
+    loginBtn.addEventListener("click", async () => {
+      loginBtn.disabled = true;
+      loginBtn.textContent = "Redirecting...";
+      await signInWithRedirect(auth, provider);
+    });
+  </script>
 </body>
 </html>
