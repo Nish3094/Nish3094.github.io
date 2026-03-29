@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Nishverse</title>
   <style>
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial;
@@ -38,6 +39,12 @@
     }
     #loginBtn:hover { background: #16a34a; }
     #loginBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+    #errorMsg {
+      margin-top: 16px;
+      color: #f87171;
+      font-size: 0.9rem;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -47,46 +54,42 @@
     </video>
     <h1>Welcome to Nishverse</h1>
     <p>Sign in with GitHub to continue</p>
-    <button id="loginBtn">Login with GitHub</button>
+    <button id="loginBtn">🐙 Login with GitHub</button>
+    <div id="errorMsg"></div>
   </div>
 
   <script type="module">
     import { auth, provider } from "./firebase.js";
     import {
-      getRedirectResult,
-      onAuthStateChanged,
-      signInWithRedirect
+      signInWithPopup,
+      onAuthStateChanged
     } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-    const loginBtn = document.getElementById("loginBtn");
+    const loginBtn  = document.getElementById("loginBtn");
+    const errorMsg  = document.getElementById("errorMsg");
 
-    // STEP 1: Check if we're returning from a GitHub redirect
-    // getRedirectResult MUST be awaited before onAuthStateChanged acts
-    getRedirectResult(auth)
-      .then((result) => {
-        if (result?.user) {
-          // Successfully authenticated via redirect — go to dashboard
-          window.location.replace("/dashboard.html");
-        }
-        // No redirect result — now safe to check existing session
-        else {
-          onAuthStateChanged(auth, (user) => {
-            if (user) {
-              window.location.replace("/dashboard.html");
-            }
-            // Not logged in — show login button normally
-          });
-        }
-      })
-      .catch((error) => {
-        console.error("GitHub login error:", error.message);
-      });
+    // If already logged in, skip straight to dashboard
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        window.location.replace("/dashboard.html");
+      }
+    });
 
-    // STEP 2: Trigger login on button click
     loginBtn.addEventListener("click", async () => {
       loginBtn.disabled = true;
-      loginBtn.textContent = "Redirecting...";
-      await signInWithRedirect(auth, provider);
+      loginBtn.textContent = "Opening GitHub...";
+      errorMsg.style.display = "none";
+
+      try {
+        await signInWithPopup(auth, provider);
+        // onAuthStateChanged above will fire and redirect automatically
+      } catch (err) {
+        console.error(err);
+        errorMsg.textContent = "Login failed: " + err.message;
+        errorMsg.style.display = "block";
+        loginBtn.disabled = false;
+        loginBtn.textContent = "🐙 Login with GitHub";
+      }
     });
   </script>
 </body>
