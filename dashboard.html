@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Nishverse Dashboard</title>
   <style>
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial;
@@ -16,7 +17,12 @@
       height: 100vh;
       text-align: center;
     }
-    .container { max-width: 900px; padding: 20px; }
+    .container {
+      max-width: 900px;
+      padding: 20px;
+      visibility: hidden; /* hidden until auth confirmed */
+    }
+    .container.ready { visibility: visible; }
     video {
       width: 220px;
       border-radius: 16px;
@@ -24,6 +30,7 @@
       box-shadow: 0 0 40px rgba(34, 197, 94, 0.4);
     }
     h2 { margin-bottom: 10px; }
+    p { color: #94a3b8; }
     .buttons {
       margin-top: 25px;
       display: flex;
@@ -41,7 +48,7 @@
     }
     .btn:hover { background: #16a34a; }
     #logoutBtn {
-      position: absolute;
+      position: fixed;
       top: 20px;
       right: 20px;
       background: #ef4444;
@@ -50,10 +57,9 @@
       padding: 10px 16px;
       border-radius: 999px;
       cursor: pointer;
+      font-weight: bold;
     }
-    /* Hide content until auth is confirmed — prevents flash */
-    .container { visibility: hidden; }
-    .container.ready { visibility: visible; }
+    #logoutBtn:hover { background: #dc2626; }
   </style>
 </head>
 <body>
@@ -80,22 +86,19 @@
     } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const userInfo = document.getElementById("userInfo");
-    const main = document.getElementById("main");
+    const main     = document.getElementById("main");
 
-    // Protect page — only show content once auth is confirmed
     onAuthStateChanged(auth, (user) => {
       if (!user) {
         window.location.replace("/");
       } else {
-        userInfo.innerText = "Logged in as: " + (user.displayName || user.email);
+        userInfo.textContent = "Logged in as: " + (user.displayName || user.email);
         main.classList.add("ready");
       }
     });
 
     document.getElementById("logoutBtn").addEventListener("click", () => {
-      signOut(auth).then(() => {
-        window.location.replace("/");
-      });
+      signOut(auth).then(() => window.location.replace("/"));
     });
   </script>
 
