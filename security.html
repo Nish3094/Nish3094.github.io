@@ -4,978 +4,123 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Nishverse | Security Posture</title>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body, #root { height: 100%; }
     body {
       background: #020617;
       color: #e2e8f0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      -webkit-font-smoothing: antialiased;
     }
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #0b1120; }
-    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: #334155; }
   </style>
 </head>
+
 <body>
-  <div id="root"></div>
+<div id="root"></div>
 
-  <!-- Firebase auth guard -->
-  <script type="module">
-    import { auth } from "./firebase.js";
-    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-    onAuthStateChanged(auth, (user) => {
-      if (!user) window.location.replace("/");
-    });
-  </script>
+<script type="text/babel">
+const { useState } = React;
 
-  <!-- Inline React app — avoids CORS errors from loading external .jsx -->
-  <script type="text/babel">
-    const { useState, useRef, useEffect, useCallback } = React;
+const API = "https://nishverse-backend.onrender.com";
 
-
-// ── colour tokens ──────────────────────────────────────────────────────────
-const C = {
-  bg:       "#020617",
-  surface:  "#0b1120",
-  card:     "#0f172a",
-  border:   "#1e293b",
-  border2:  "#334155",
-  text:     "#e2e8f0",
-  muted:    "#64748b",
-  dim:      "#334155",
-  green:    "#22c55e",
-  greenDim: "#166534",
-  purple:   "#a78bfa",
-  purpleBg: "#1e1b4b",
-  purpleMid:"#7c3aed",
-};
-
-const SEV = {
-  CRITICAL: { bg:"#1c0a0a", text:"#fca5a5", border:"#7f1d1d", dot:"#ef4444" },
-  HIGH:     { bg:"#1c1108", text:"#fdba74", border:"#7c2d12", dot:"#f97316" },
-  MEDIUM:   { bg:"#1c1a05", text:"#fde68a", border:"#713f12", dot:"#eab308" },
-  LOW:      { bg:"#071c0e", text:"#86efac", border:"#14532d", dot:"#22c55e" },
-};
-
-// ── mock findings ──────────────────────────────────────────────────────────
-const FINDINGS = [
-  { id:"s3_public",   service:"S3",         severity:"CRITICAL", title:"S3 bucket publicly accessible",          cis:"CIS 2.1.5", soc2:"CC6.1", resource:"aws_s3_bucket.app_assets",      description:"Public access block is disabled on one or more S3 buckets, exposing objects to the internet." },
-  { id:"root_mfa",    service:"IAM",        severity:"CRITICAL", title:"Root account MFA not enabled",           cis:"CIS 1.5",   soc2:"CC6.1", resource:"aws_iam_account (root)",         description:"The AWS root account has no MFA device registered, leaving it vulnerable to credential theft." },
-  { id:"sg_open",     service:"EC2",        severity:"HIGH",     title:"Security group allows 0.0.0.0/0 ingress",cis:"CIS 5.2",   soc2:"CC6.6", resource:"aws_security_group.web_sg",     description:"Inbound rules permit unrestricted access on ports 22 and 3389 from the public internet." },
-  { id:"cloudtrail",  service:"CloudTrail", severity:"HIGH",     title:"CloudTrail not multi-region",            cis:"CIS 3.1",   soc2:"CC7.2", resource:"aws_cloudtrail.main",            description:"Trail is scoped to a single region; API calls in other regions go unlogged." },
-  { id:"ebs_encrypt", service:"EC2",        severity:"HIGH",     title:"EBS volumes not encrypted",              cis:"CIS 2.2.1", soc2:"CC6.7", resource:"aws_ebs_volume.*",               description:"Default EBS encryption is off; volumes could expose data if the underlying hardware is compromised." },
-  { id:"rds_public",  service:"RDS",        severity:"HIGH",     title:"RDS instance publicly accessible",       cis:"CIS 2.3.2", soc2:"CC6.6", resource:"aws_db_instance.main",           description:"publicly_accessible = true places the database endpoint on a public subnet." },
-  { id:"key_rotate",  service:"IAM",        severity:"MEDIUM",   title:"IAM access keys older than 90 days",    cis:"CIS 1.14",  soc2:"CC6.1", resource:"aws_iam_access_key.*",           description:"Long-lived access keys increase the blast radius of a credential leak." },
-  { id:"vpc_flow",    service:"VPC",        severity:"MEDIUM",   title:"VPC flow logs disabled",                 cis:"CIS 3.9",   soc2:"CC7.2", resource:"aws_vpc.main",                   description:"Without flow logs, east-west traffic and data exfiltration cannot be detected post-incident." },
-  { id:"guardduty",   service:"GuardDuty",  severity:"MEDIUM",   title:"GuardDuty not enabled",                 cis:"CIS 3.8",   soc2:"CC7.1", resource:"aws_guardduty_detector",         description:"Threat detection is inactive; malicious reconnaissance and crypto-mining go undetected." },
-  { id:"pwd_policy",  service:"IAM",        severity:"LOW",      title:"Weak IAM password policy",              cis:"CIS 1.8",   soc2:"CC6.1", resource:"aws_iam_account_password_policy", description:"Password policy allows short passwords with no complexity requirements." },
-];
-
-const SVCICON = { S3:"🪣", IAM:"🔑", EC2:"💻", RDS:"🗄️", CloudTrail:"📋", VPC:"🌐", GuardDuty:"🛡️" };
-const SEVORD  = { CRITICAL:0, HIGH:1, MEDIUM:2, LOW:3 };
-
-// ── Claude streaming helper ────────────────────────────────────────────────
-async function streamClaude(messages, onChunk, onDone, signal) {
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      signal,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1000,
-        stream: true,
-        messages,
-      }),
-    });
-    const reader = res.body.getReader();
-    const dec = new TextDecoder();
-    let buf = "";
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += dec.decode(value, { stream: true });
-      const lines = buf.split("\n");
-      buf = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const raw = line.slice(6).trim();
-        if (raw === "[DONE]") continue;
-        try {
-          const evt = JSON.parse(raw);
-          if (evt.type === "content_block_delta" && evt.delta?.text) {
-            onChunk(evt.delta.text);
-          }
-        } catch {}
-      }
-    }
-    onDone();
-  } catch (e) {
-    if (e.name !== "AbortError") onDone("error");
-  }
-}
-
-// ── shared system prompt ───────────────────────────────────────────────────
-function buildSystemPrompt(findings) {
-  return `You are a senior AWS cloud security engineer embedded inside a Security Posture dashboard called Nishverse.
-The user's environment has the following active findings:
-
-${findings.map(f => `[${f.severity}] ${f.title} (${f.service}) — ${f.description} | CIS: ${f.cis} | Resource: ${f.resource}`).join("\n")}
-
-Rules:
-- Be concise, direct, and technical but readable.
-- Use markdown sparingly — short bold phrases and code blocks only.
-- Never repeat the finding title back verbatim.
-- When generating Terraform, produce complete, copy-paste-ready HCL with realistic resource names.
-- When chatting, answer only about this AWS environment and its security posture.`;
-}
-
-// ── InlineAI: streams explanation under a finding ──────────────────────────
-function InlineAI({ finding, allFindings }) {
-  const [state, setState] = useState("idle"); // idle | loading | streaming | done | error
-  const [text, setText] = useState("");
-  const abortRef = useRef(null);
-
-  const run = useCallback(() => {
-    if (state === "loading" || state === "streaming") {
-      abortRef.current?.abort();
-      setState("idle");
-      setText("");
-      return;
-    }
-    setText("");
-    setState("loading");
-    abortRef.current = new AbortController();
-    streamClaude(
-      [{ role:"user", content:`Explain the real-world risk of this finding in 3–4 sentences for a DevOps engineer. Finding: "${finding.title}". Resource: ${finding.resource}. Description: ${finding.description}. Then give ONE concrete attack scenario an adversary could exploit from it.` }],
-      (chunk) => { setState("streaming"); setText(p => p + chunk); },
-      (err) => setState(err === "error" ? "error" : "done"),
-      abortRef.current.signal,
-    );
-  }, [state, finding]);
-
-  useEffect(() => () => abortRef.current?.abort(), []);
-
-  const active = state === "loading" || state === "streaming";
-
-  return (
-    <div>
-      <button onClick={run} style={{
-        display: "inline-flex", alignItems: "center", gap: 6,
-        background: active ? C.purpleBg : "transparent",
-        color: active ? C.purple : C.muted,
-        border: `1px solid ${active ? C.purple+"55" : C.dim}`,
-        borderRadius: 6, padding: "5px 12px", fontSize: 12,
-        fontWeight: 600, cursor: "pointer", transition: "all 0.2s",
-        letterSpacing: "0.02em",
-      }}>
-        <span style={{ fontSize: 11 }}>✦</span>
-        {active ? "Stop" : state === "done" ? "Re-explain" : "Explain risk"}
-        {active && <span style={{ display:"inline-block", width:8, height:8, borderRadius:"50%",
-          background: C.purple, animation:"pulse 1s ease-in-out infinite" }}/>}
-      </button>
-
-      {(text || state === "loading") && (
-        <div style={{
-          marginTop: 12, padding: "14px 16px",
-          background: C.purpleBg+"88", border: `1px solid ${C.purple}33`,
-          borderRadius: 10, fontSize: 13, lineHeight: 1.75,
-          color: "#c4b5fd", fontFamily: "'Georgia', serif",
-          whiteSpace: "pre-wrap",
-        }}>
-          {state === "loading" && !text
-            ? <span style={{ color: C.purple, opacity: 0.6 }}>Analyzing risk...</span>
-            : text}
-          {(state === "streaming") && (
-            <span style={{ display:"inline-block", width:2, height:14,
-              background: C.purple, marginLeft:2, animation:"blink 0.7s step-end infinite",
-              verticalAlign:"text-bottom" }}/>
-          )}
-        </div>
-      )}
-      {state === "error" && (
-        <div style={{ marginTop:8, color:"#f87171", fontSize:12 }}>Failed to connect. Check your network.</div>
-      )}
-    </div>
-  );
-}
-
-// ── TerraformPanel: AI-generated fix, streamed ─────────────────────────────
-function TerraformPanel({ finding, allFindings, onClose }) {
-  const [text, setText] = useState("");
-  const [state, setState] = useState("loading");
-  const abortRef = useRef(new AbortController());
-  const preRef = useRef(null);
-
-  useEffect(() => {
-    const ctrl = abortRef.current;
-    streamClaude(
-      [{ role:"user", content:`Generate a complete, production-ready Terraform HCL snippet that remediates this finding.
-
-Finding: "${finding.title}"
-Resource: ${finding.resource}
-Description: ${finding.description}
-CIS Control: ${finding.cis}
-
-Rules:
-- Output ONLY valid HCL inside a single fenced code block
-- Use realistic resource names consistent with the finding's resource field
-- Add inline comments explaining WHY each attribute is set
-- Include any required supporting resources (KMS keys, IAM roles, log groups, etc.)
-- No explanation prose outside the code block` }],
-      (chunk) => { setState("streaming"); setText(p => p + chunk); },
-      (err) => setState(err === "error" ? "error" : "done"),
-      ctrl.signal,
-    );
-    return () => ctrl.abort();
-  }, [finding]);
-
-  // extract code block
-  const code = (() => {
-    const m = text.match(/```(?:hcl|terraform)?\n?([\s\S]*?)```/);
-    return m ? m[1].trim() : text.replace(/^```.*\n?/, "").replace(/```$/, "").trim();
-  })();
-
-  const [copied, setCopied] = useState(false);
-  const copy = () => {
-    navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
-  };
-
-  return (
-    <div onClick={onClose} style={{
-      position:"fixed", inset:0, background:"rgba(0,0,0,0.8)",
-      zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:24,
-    }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background: C.card, border:`1px solid ${C.border}`,
-        borderRadius:16, width:"100%", maxWidth:700,
-        maxHeight:"85vh", display:"flex", flexDirection:"column",
-        overflow:"hidden",
-      }}>
-        {/* header */}
-        <div style={{ padding:"20px 24px 16px", borderBottom:`1px solid ${C.border}`,
-          display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexShrink:0 }}>
-          <div>
-            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
-              <span style={{ fontSize:11, fontWeight:700, letterSpacing:"0.08em",
-                color: SEV[finding.severity].dot, textTransform:"uppercase" }}>
-                {finding.severity}
-              </span>
-              <span style={{ color:C.muted, fontSize:12 }}>{finding.cis}</span>
-            </div>
-            <div style={{ color:C.text, fontWeight:700, fontSize:15 }}>{finding.title}</div>
-            <div style={{ color:C.muted, fontSize:12, marginTop:4, display:"flex", alignItems:"center", gap:6 }}>
-              <span style={{ color: C.purple, fontSize:11 }}>✦</span>
-              AI-generated Terraform remediation
-              {state === "streaming" && <span style={{ color:C.purple, fontSize:11 }}>· generating...</span>}
-              {state === "done" && <span style={{ color:C.green, fontSize:11 }}>· complete</span>}
-            </div>
-          </div>
-          <div style={{ display:"flex", gap:8, flexShrink:0 }}>
-            {code && (
-              <button onClick={copy} style={{
-                background: copied ? C.greenDim : C.border, color: copied ? C.green : C.muted,
-                border:"none", borderRadius:6, padding:"6px 12px", fontSize:12, cursor:"pointer",
-              }}>{copied ? "✓ Copied" : "Copy"}</button>
-            )}
-            <button onClick={onClose} style={{
-              background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:18,
-            }}>✕</button>
-          </div>
-        </div>
-
-        {/* code */}
-        <div style={{ overflowY:"auto", flex:1 }}>
-          <pre ref={preRef} style={{
-            margin:0, padding:24,
-            background: C.bg, color:"#e2e8f0",
-            fontSize:13, lineHeight:1.65,
-            fontFamily:"'JetBrains Mono','Fira Code',monospace",
-            whiteSpace:"pre-wrap", wordBreak:"break-word",
-          }}>
-            {state === "loading" && !text
-              ? <span style={{ color:C.purple, opacity:0.5 }}>Generating fix...</span>
-              : code || text}
-            {state === "streaming" && (
-              <span style={{ display:"inline-block", width:2, height:14,
-                background:C.purple, marginLeft:2,
-                animation:"blink 0.7s step-end infinite", verticalAlign:"text-bottom" }}/>
-            )}
-          </pre>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── FloatingChat ───────────────────────────────────────────────────────────
-function FloatingChat({ findings, open, onToggle }) {
-  const [messages, setMessages] = useState([
-    { role:"assistant", content:"Hi! I have full context of your AWS findings. Ask me anything — *'what's my riskiest resource?'*, *'explain the S3 risk'*, *'give me a remediation plan'*." }
-  ]);
-  const [input, setInput] = useState("");
-  const [streaming, setStreaming] = useState(false);
-  const abortRef = useRef(null);
-  const bottomRef = useRef(null);
-  const inputRef = useRef(null);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior:"smooth" });
-  }, [messages, streaming]);
-
-  useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 100);
-  }, [open]);
-
-  const send = useCallback(() => {
-    const q = input.trim();
-    if (!q || streaming) return;
-    setInput("");
-
-    const userMsg = { role:"user", content: q };
-    const newHistory = [...messages, userMsg];
-    setMessages(newHistory);
-    setStreaming(true);
-
-    // placeholder
-    setMessages(m => [...m, { role:"assistant", content:"" }]);
-
-    abortRef.current = new AbortController();
-
-    // build API messages (strip the first assistant greeting from history for API)
-    const apiMsgs = newHistory
-      .filter((_, i) => i > 0)  // skip the greeting
-      .map(m => ({ role: m.role, content: m.content }));
-
-    streamClaude(
-      apiMsgs,
-      (chunk) => setMessages(m => {
-        const copy = [...m];
-        copy[copy.length - 1] = { role:"assistant", content: copy[copy.length-1].content + chunk };
-        return copy;
-      }),
-      () => setStreaming(false),
-      abortRef.current.signal,
-    );
-  }, [input, messages, streaming]);
-
-  const onKey = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
-  };
-
-  const systemPrompt = buildSystemPrompt(findings);
-
-  return (
-    <>
-      {/* toggle pill */}
-      <button onClick={onToggle} style={{
-        position:"fixed", bottom:28, right:28, zIndex:900,
-        background: open ? C.purpleMid : C.card,
-        color:"white", border:`1px solid ${open ? C.purple : C.border}`,
-        borderRadius:999, padding:"12px 20px",
-        fontWeight:700, fontSize:14, cursor:"pointer",
-        boxShadow:"0 8px 32px rgba(0,0,0,0.5)",
-        display:"flex", alignItems:"center", gap:8,
-        transition:"all 0.2s",
-      }}>
-        <span>{open ? "✕" : "✦"}</span>
-        {open ? "Close" : "Ask AI"}
-        {!open && <span style={{
-          background:C.purple, color:"white", fontSize:10,
-          borderRadius:999, padding:"1px 6px", fontWeight:800,
-        }}>LIVE</span>}
-      </button>
-
-      {/* panel */}
-      {open && (
-        <div style={{
-          position:"fixed", bottom:88, right:28, zIndex:901,
-          width:380, height:520,
-          background:C.card, border:`1px solid ${C.border}`,
-          borderRadius:16, display:"flex", flexDirection:"column",
-          boxShadow:"0 24px 64px rgba(0,0,0,0.6)",
-          overflow:"hidden",
-        }}>
-          {/* header */}
-          <div style={{
-            padding:"14px 18px", borderBottom:`1px solid ${C.border}`,
-            display:"flex", alignItems:"center", gap:10, flexShrink:0,
-          }}>
-            <div style={{
-              width:32, height:32, borderRadius:"50%",
-              background:`linear-gradient(135deg, ${C.purpleMid}, #2563eb)`,
-              display:"flex", alignItems:"center", justifyContent:"center",
-              fontSize:14, flexShrink:0,
-            }}>✦</div>
-            <div>
-              <div style={{ fontWeight:700, fontSize:13, color:C.text }}>Security AI</div>
-              <div style={{ fontSize:11, color:C.green, display:"flex", alignItems:"center", gap:4 }}>
-                <span style={{ width:6, height:6, borderRadius:"50%", background:C.green, display:"inline-block" }}/>
-                {findings.length} findings in context
-              </div>
-            </div>
-          </div>
-
-          {/* messages */}
-          <div style={{ flex:1, overflowY:"auto", padding:"14px 16px", display:"flex", flexDirection:"column", gap:12 }}>
-            {messages.map((m, i) => (
-              <div key={i} style={{
-                display:"flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start",
-              }}>
-                <div style={{
-                  maxWidth:"86%", padding:"10px 14px", borderRadius:12,
-                  background: m.role === "user" ? C.purpleMid : C.surface,
-                  border: `1px solid ${m.role === "user" ? C.purple+"44" : C.border}`,
-                  color: C.text, fontSize:13, lineHeight:1.65,
-                  whiteSpace:"pre-wrap",
-                  borderBottomRightRadius: m.role === "user" ? 4 : 12,
-                  borderBottomLeftRadius: m.role === "assistant" ? 4 : 12,
-                }}>
-                  {m.content || (streaming && i === messages.length - 1
-                    ? <span style={{ color:C.muted, fontSize:12 }}>thinking...</span>
-                    : "")}
-                  {streaming && i === messages.length - 1 && m.content && (
-                    <span style={{ display:"inline-block", width:2, height:12,
-                      background:C.purple, marginLeft:2,
-                      animation:"blink 0.7s step-end infinite", verticalAlign:"text-bottom" }}/>
-                  )}
-                </div>
-              </div>
-            ))}
-            <div ref={bottomRef} />
-          </div>
-
-          {/* input */}
-          <div style={{ padding:"12px 14px", borderTop:`1px solid ${C.border}`, flexShrink:0 }}>
-            <div style={{ display:"flex", gap:8 }}>
-              <input
-                ref={inputRef}
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={onKey}
-                placeholder="Ask about your AWS environment..."
-                style={{
-                  flex:1, background:C.surface, border:`1px solid ${C.border}`,
-                  borderRadius:8, padding:"9px 12px", color:C.text,
-                  fontSize:13, outline:"none", fontFamily:"inherit",
-                }}
-              />
-              <button onClick={send} disabled={!input.trim() || streaming} style={{
-                background: input.trim() && !streaming ? C.purpleMid : C.dim,
-                color: "white", border:"none", borderRadius:8,
-                width:36, cursor: input.trim() && !streaming ? "pointer" : "not-allowed",
-                fontSize:16, transition:"background 0.2s", flexShrink:0,
-              }}>↑</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-// ── FindingCard ────────────────────────────────────────────────────────────
-function FindingCard({ finding, allFindings }) {
-  const [expanded, setExpanded] = useState(false);
-  const [showTerraform, setShowTerraform] = useState(false);
-  const s = SEV[finding.severity];
-
-  return (
-    <div style={{
-      background: C.card, borderRadius:12,
-      border:`1px solid ${C.border}`,
-      borderLeft:`3px solid ${s.dot}`,
-      overflow:"hidden", transition:"border-color 0.2s",
-    }}>
-      {/* top row */}
-      <div onClick={() => setExpanded(e => !e)} style={{
-        padding:"16px 20px", cursor:"pointer",
-        display:"flex", alignItems:"center", justifyContent:"space-between", gap:12,
-      }}>
-        <div style={{ display:"flex", alignItems:"center", gap:12, flex:1, minWidth:0 }}>
-          <span style={{ fontSize:18, flexShrink:0 }}>{SVCICON[finding.service] || "⚠️"}</span>
-          <div style={{ minWidth:0 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:4 }}>
-              {/* severity badge */}
-              <span style={{
-                background:s.bg, color:s.text, border:`1px solid ${s.border}`,
-                borderRadius:5, padding:"2px 8px", fontSize:11,
-                fontWeight:700, letterSpacing:"0.06em", textTransform:"uppercase", flexShrink:0,
-              }}>{finding.severity}</span>
-              <span style={{ color:C.muted, fontSize:12 }}>{finding.service}</span>
-              <span style={{ color:C.dim, fontSize:11 }}>{finding.cis}</span>
-            </div>
-            <div style={{ fontWeight:600, fontSize:14, color:C.text, whiteSpace:"nowrap",
-              overflow:"hidden", textOverflow:"ellipsis" }}>{finding.title}</div>
-          </div>
-        </div>
-        <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0 }}>
-          <button onClick={e => { e.stopPropagation(); setShowTerraform(true); }} style={{
-            background:"transparent", color:C.green,
-            border:`1px solid ${C.greenDim}`, borderRadius:7,
-            padding:"6px 12px", fontSize:12, fontWeight:600,
-            cursor:"pointer", whiteSpace:"nowrap", transition:"all 0.15s",
-          }}>⚡ Fix</button>
-          <span style={{ color:C.muted, fontSize:14,
-            transform: expanded ? "rotate(180deg)" : "none", transition:"transform 0.2s" }}>▾</span>
-        </div>
-      </div>
-
-      {/* expanded body */}
-      {expanded && (
-        <div style={{ padding:"0 20px 18px", borderTop:`1px solid ${C.border}` }}>
-          <p style={{ color:"#94a3b8", fontSize:13, lineHeight:1.7, margin:"12px 0 14px" }}>
-            {finding.description}
-          </p>
-          <div style={{ fontSize:12, color:C.muted, marginBottom:14 }}>
-            Resource: <code style={{ color:"#7dd3fc", fontSize:12 }}>{finding.resource}</code>
-            <span style={{ margin:"0 10px", color:C.dim }}>·</span>
-            SOC2: <span style={{ color:C.muted }}>{finding.soc2}</span>
-          </div>
-
-          {/* inline AI explanation */}
-          <InlineAI finding={finding} allFindings={allFindings} />
-        </div>
-      )}
-
-      {/* terraform modal */}
-      {showTerraform && (
-        <TerraformPanel finding={finding} allFindings={allFindings} onClose={() => setShowTerraform(false)} />
-      )}
-    </div>
-  );
-}
-
-// ── ScoreRing ──────────────────────────────────────────────────────────────
-function ScoreRing({ score }) {
-  const r = 52, cx = 62, cy = 62, circ = 2 * Math.PI * r;
-  const color = score >= 80 ? "#16a34a" : score >= 60 ? "#d97706" : "#dc2626";
-  return (
-    <svg width="124" height="124" viewBox="0 0 124 124">
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke={C.border} strokeWidth="9"/>
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth="9"
-        strokeDasharray={circ} strokeDashoffset={circ * (1 - score / 100)}
-        strokeLinecap="round" transform="rotate(-90 62 62)"
-        style={{ transition:"stroke-dashoffset 1.2s ease" }}/>
-      <text x={cx} y={cy - 5} textAnchor="middle" fill="white"
-        style={{ fontSize:24, fontWeight:700, fontFamily:"monospace" }}>{score}</text>
-      <text x={cx} y={cy + 14} textAnchor="middle" fill={C.muted}
-        style={{ fontSize:11 }}>/ 100</text>
-    </svg>
-  );
-}
-
-// ── CloudFormation launch helper ───────────────────────────────────────────
-// ⚠️  FILL IN BEFORE DEPLOY: Replace with your actual Nishverse AWS account ID.
-// This is the account that will assume the role in the user's AWS account.
-const NISHVERSE_ACCOUNT_ID = "712416033858";
-
-// CloudFormation template — creates a read-only cross-account IAM role
-
-
-function launchCloudFormation(region = "us-east-1") {
-  const templateURL = encodeURIComponent(
-    "https://nishverse-templates-712416033858-us-east-1-an.s3.us-east-1.amazonaws.com/nishverse-audit-role.json"
-  );
-
-  const url =
-    `https://console.aws.amazon.com/cloudformation/home?region=${region}` +
-    `#/stacks/create/review?stackName=NishverseSecurityAuditRole&templateURL=${templateURL}`;
-
-  window.open(url, "_blank");
-}
-
-// ── ConnectView ────────────────────────────────────────────────────────────
 function ConnectView({ onConnect }) {
   const [arn, setArn] = useState("");
-  const [externalId, setExternalId] = useState("nishverse-audit");
-  const [scanning, setScanning] = useState(false);
-  const [step, setStep] = useState(-1);
-  const [cfnRegion, setCfnRegion] = useState("us-east-1");
-  const [showCfnHelper, setShowCfnHelper] = useState(false);
-
-  const AWS_REGIONS = [
-    "us-east-1","us-east-2","us-west-1","us-west-2",
-    "ap-south-1","ap-southeast-1","ap-southeast-2","ap-northeast-1",
-    "eu-west-1","eu-west-2","eu-central-1","ca-central-1"
-  ];
-
-  const steps = [
-    "Assuming IAM Role via STS...",
-    "Enumerating IAM policies & users...",
-    "Scanning S3 bucket configurations...",
-    "Checking EC2 security groups...",
-    "Auditing RDS instances...",
-    "Verifying CloudTrail setup...",
-    "Inspecting VPC flow logs...",
-    "Detecting GuardDuty status...",
-    "Running CIS benchmark checks...",
-    "Calculating compliance score...",
-  ];
+  const [loading, setLoading] = useState(false);
 
   const valid = arn.includes("arn:aws:iam::");
 
-  const connect = () => {
+  const connect = async () => {
     if (!valid) return;
-    setScanning(true);
-    let i = 0;
-    const iv = setInterval(() => {
-      setStep(i++);
-      if (i >= steps.length) { clearInterval(iv); setTimeout(() => onConnect(arn), 600); }
-    }, 480);
+
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${API}/scan`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          roleArn: arn,
+          externalId: "nishverse-audit"
+        })
+      });
+
+      const data = await res.json();
+
+      if (!data.success) throw new Error("Scan failed");
+
+      onConnect({
+        arn,
+        findings: data.findings
+      });
+
+    } catch (err) {
+      console.error(err);
+      alert("Scan failed. Check backend logs.");
+      setLoading(false);
+    }
   };
 
   return (
-    <div style={{
-      minHeight:"100vh", background:`radial-gradient(ellipse at 30% 20%, #1e293b, ${C.bg} 60%)`,
-      display:"flex", alignItems:"center", justifyContent:"center",
-      fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", padding:24,
-      color:C.text,
-    }}>
-      <div style={{ width:"100%", maxWidth:560, textAlign:"center" }}>
-        <video autoPlay muted loop playsInline style={{
-          width:110, borderRadius:14, marginBottom:20,
-          boxShadow:"0 0 40px rgba(34,197,94,0.25)",
-        }}>
-          <source src="https://nish3094.github.io/trademark_logo.mp4" type="video/mp4"/>
-        </video>
-        <h1 style={{ fontSize:26, fontWeight:800, margin:"0 0 6px", letterSpacing:"-0.02em" }}>
-          Nishverse Security Posture
-        </h1>
-        <p style={{ color:C.muted, marginBottom:32, fontSize:14 }}>
-          Connect your AWS environment via cross-account IAM Role to scan for
-          vulnerabilities, misconfigurations &amp; compliance drift.
-        </p>
+    <div style={{ padding: 40 }}>
+      <h2>Connect AWS Account</h2>
 
-        {!scanning ? (
-          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:28, textAlign:"left" }}>
+      <input
+        value={arn}
+        onChange={(e) => setArn(e.target.value)}
+        placeholder="arn:aws:iam::123456789012:role/NishverseSecurityAuditRole"
+        style={{ width: "100%", padding: 10, marginBottom: 10 }}
+      />
 
-            {/* ── Step 1: Create Role ── */}
-            <div style={{ marginBottom:24 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
-                <span style={{ background:C.green, color:"black", width:22, height:22, borderRadius:"50%",
-                  display:"inline-flex", alignItems:"center", justifyContent:"center",
-                  fontSize:12, fontWeight:800, flexShrink:0 }}>1</span>
-                <span style={{ fontWeight:700, fontSize:14 }}>Create the IAM Role in your AWS account</span>
-              </div>
-
-              <div style={{ background:C.surface, borderRadius:10, padding:"12px 16px", marginBottom:12,
-                fontSize:13, color:"#94a3b8", lineHeight:1.65, borderLeft:`3px solid ${C.green}` }}>
-                Use our one-click CloudFormation template to create a read-only audit role.
-                It attaches <code style={{ color:"#7dd3fc" }}>SecurityAudit</code> + <code style={{ color:"#7dd3fc" }}>ReadOnlyAccess</code> policies
-                and scopes the trust to Nishverse only.
-              </div>
-
-              {/* Region picker + launch button */}
-              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                <select value={cfnRegion} onChange={e => setCfnRegion(e.target.value)} style={{
-                  background:C.bg, border:`1px solid ${C.border}`, borderRadius:8,
-                  color:C.text, padding:"10px 12px", fontSize:13, outline:"none",
-                  fontFamily:"monospace", flex:1, cursor:"pointer",
-                }}>
-                  {AWS_REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-                <button onClick={() => launchCloudFormation(cfnRegion)} style={{
-                  background:C.green, color:"black", border:"none",
-                  borderRadius:8, padding:"10px 18px", fontWeight:800,
-                  fontSize:13, cursor:"pointer", whiteSpace:"nowrap",
-                  display:"flex", alignItems:"center", gap:6,
-                }}>
-                  🚀 Create Role
-                </button>
-              </div>
-
-              {/* What the template creates */}
-              <button onClick={() => setShowCfnHelper(h => !h)} style={{
-                background:"none", border:"none", color:C.muted, fontSize:12,
-                cursor:"pointer", marginTop:8, padding:0, textDecoration:"underline",
-                textDecorationStyle:"dotted",
-              }}>
-                {showCfnHelper ? "Hide" : "What does this create?"}
-              </button>
-
-              {showCfnHelper && (
-                <div style={{ marginTop:10, background:C.bg, borderRadius:8,
-                  border:`1px solid ${C.border}`, padding:"12px 14px", fontSize:12, lineHeight:1.8 }}>
-                  <div style={{ color:C.green, fontWeight:700, marginBottom:6 }}>CloudFormation creates:</div>
-                  {[
-                    ["IAM Role", "NishverseSecurityAuditRole"],
-                    ["Policies", "SecurityAudit + ReadOnlyAccess (AWS managed)"],
-                    ["Trust", `Nishverse account only (ID: ${NISHVERSE_ACCOUNT_ID})`],
-                    ["Condition", "External ID: nishverse-audit"],
-                    ["Stack name", "NishverseSecurityAuditRole"],
-                  ].map(([k,v]) => (
-                    <div key={k} style={{ display:"flex", gap:8 }}>
-                      <span style={{ color:C.muted, minWidth:70 }}>{k}</span>
-                      <span style={{ color:"#94a3b8", fontFamily:"monospace" }}>{v}</span>
-                    </div>
-                  ))}
-                  <div style={{ marginTop:10, color:C.muted, borderTop:`1px solid ${C.border}`, paddingTop:8 }}>
-                    After the stack completes, go to <strong style={{ color:C.text }}>Outputs</strong> tab
-                    in CloudFormation to copy the Role ARN.
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* divider */}
-            <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
-              <div style={{ flex:1, height:1, background:C.border }}/>
-              <span style={{ color:C.dim, fontSize:12 }}>then</span>
-              <div style={{ flex:1, height:1, background:C.border }}/>
-            </div>
-
-            {/* ── Step 2: Paste ARN ── */}
-            <div>
-              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
-                <span style={{ background:C.border, color:C.text, width:22, height:22, borderRadius:"50%",
-                  display:"inline-flex", alignItems:"center", justifyContent:"center",
-                  fontSize:12, fontWeight:800, flexShrink:0 }}>2</span>
-                <span style={{ fontWeight:700, fontSize:14 }}>Paste the Role ARN from CloudFormation Outputs</span>
-              </div>
-
-              <label style={{ color:C.muted, fontSize:12, fontWeight:600, letterSpacing:"0.05em",
-                textTransform:"uppercase", display:"block", marginBottom:6 }}>Role ARN</label>
-              <input value={arn} onChange={e => setArn(e.target.value)}
-                placeholder="arn:aws:iam::123456789012:role/NishverseSecurityAuditRole"
-                style={{ width:"100%", background:C.bg, border:`1px solid ${valid ? C.green+"66" : C.border}`,
-                  borderRadius:8, padding:"11px 14px", color:C.text, fontSize:13,
-                  marginBottom:14, boxSizing:"border-box", fontFamily:"monospace", outline:"none",
-                  transition:"border-color 0.2s" }}/>
-
-              <label style={{ color:C.muted, fontSize:12, fontWeight:600, letterSpacing:"0.05em",
-                textTransform:"uppercase", display:"block", marginBottom:6 }}>External ID</label>
-              <input value={externalId} onChange={e => setExternalId(e.target.value)}
-                placeholder="nishverse-audit"
-                style={{ width:"100%", background:C.bg, border:`1px solid ${C.border}`,
-                  borderRadius:8, padding:"11px 14px", color:C.text, fontSize:13,
-                  marginBottom:22, boxSizing:"border-box", fontFamily:"monospace", outline:"none" }}/>
-
-              <button onClick={connect} disabled={!valid} style={{
-                width:"100%", padding:14,
-                background: valid ? C.green : C.border,
-                color: valid ? "black" : C.muted,
-                border:"none", borderRadius:999, fontWeight:800,
-                fontSize:15, cursor: valid ? "pointer" : "not-allowed", transition:"all 0.2s",
-              }}>Connect &amp; Scan Environment</button>
-            </div>
-          </div>
-        ) : (
-          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:32, textAlign:"left" }}>
-            <div style={{ textAlign:"center", marginBottom:24 }}>
-              <div style={{ width:44, height:44, border:`3px solid ${C.border}`,
-                borderTopColor:C.green, borderRadius:"50%",
-                animation:"spin 0.8s linear infinite", margin:"0 auto 14px" }}/>
-              <p style={{ color:C.green, fontWeight:700, margin:0 }}>Scanning AWS environment...</p>
-            </div>
-            {steps.map((s, i) => (
-              <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 0",
-                opacity: i <= step ? 1 : 0.25, transition:"opacity 0.3s" }}>
-                <span style={{ fontSize:13 }}>{i < step ? "✅" : i === step ? "⏳" : "⬜"}</span>
-                <span style={{ fontSize:13, color: i < step ? C.green : i === step ? C.text : C.muted }}>{s}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <button onClick={connect} disabled={!valid || loading}>
+        {loading ? "Scanning..." : "Connect & Scan"}
+      </button>
     </div>
   );
 }
 
-// ── DashboardView ──────────────────────────────────────────────────────────
-function DashboardView({ roleArn, onDisconnect }) {
-  const [tab, setTab] = useState("findings");
-  const [filter, setFilter] = useState("ALL");
-  const [chatOpen, setChatOpen] = useState(false);
-
-  const sorted = [...FINDINGS].sort((a,b) => SEVORD[a.severity] - SEVORD[b.severity]);
-  const filtered = filter === "ALL" ? sorted : sorted.filter(f => f.severity === filter);
-
-  const counts = { CRITICAL:0, HIGH:0, MEDIUM:0, LOW:0 };
-  FINDINGS.forEach(f => counts[f.severity]++);
-  const score = Math.max(0, Math.round(100 - counts.CRITICAL*18 - counts.HIGH*9 - counts.MEDIUM*4 - counts.LOW*1));
-  const cisPass = FINDINGS.filter((_,i) => i%3 !== 0).length;
-  const soc2Pass = FINDINGS.filter((_,i) => i%4 !== 0).length;
+function DashboardView({ session, onDisconnect }) {
+  const { arn, findings } = session;
 
   return (
-    <div style={{ minHeight:"100vh", background:C.bg,
-      fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", color:C.text }}>
+    <div style={{ padding: 40 }}>
+      <h2>Connected: {arn}</h2>
 
-      {/* topbar */}
-      <div style={{ background:C.card, borderBottom:`1px solid ${C.border}`,
-        padding:"0 24px", display:"flex", alignItems:"center",
-        justifyContent:"space-between", height:58, position:"sticky", top:0, zIndex:50 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <span style={{ width:8, height:8, borderRadius:"50%", background:C.green,
-            boxShadow:`0 0 8px ${C.green}`, display:"inline-block" }}/>
-          <span style={{ fontWeight:800, fontSize:15 }}>Nishverse Security Posture</span>
-          <span style={{ background:C.surface, color:C.muted, fontSize:11, padding:"2px 8px",
-            borderRadius:4, fontFamily:"monospace" }}>
-            {roleArn.split(":role/")[1] || roleArn}
-          </span>
+      <button onClick={onDisconnect}>Disconnect</button>
+
+      <h3 style={{ marginTop: 20 }}>Findings</h3>
+
+      {findings.length === 0 && <p>No findings</p>}
+
+      {findings.map((f) => (
+        <div key={f.id} style={{
+          border: "1px solid #1e293b",
+          padding: 12,
+          marginBottom: 10,
+          borderRadius: 6
+        }}>
+          <strong>{f.severity}</strong> — {f.title}
+          <p>{f.description}</p>
         </div>
-        <div style={{ display:"flex", gap:8 }}>
-          <button onClick={() => setChatOpen(o => !o)} style={{
-            background: chatOpen ? C.purpleMid : C.surface,
-            color: chatOpen ? "white" : C.purple,
-            border:`1px solid ${chatOpen ? C.purpleMid : C.purple+"44"}`,
-            borderRadius:999, padding:"7px 16px", fontSize:13, fontWeight:700, cursor:"pointer",
-          }}>✦ AI Chat</button>
-          <button onClick={onDisconnect} style={{
-            background:C.surface, color:C.muted, border:`1px solid ${C.border}`,
-            borderRadius:999, padding:"7px 14px", fontSize:13, cursor:"pointer",
-          }}>Disconnect</button>
-        </div>
-      </div>
-
-      <div style={{ padding:24, maxWidth:1100, margin:"0 auto" }}>
-        {/* stat cards */}
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:12, marginBottom:26 }}>
-          {[
-            { label:"Total", value:FINDINGS.length, color:C.muted },
-            { label:"Critical", value:counts.CRITICAL, color:"#ef4444" },
-            { label:"High",     value:counts.HIGH,     color:"#f97316" },
-            { label:"Medium",   value:counts.MEDIUM,   color:"#eab308" },
-            { label:"Low",      value:counts.LOW,      color:C.green },
-          ].map(s => (
-            <div key={s.label} style={{ background:C.card, border:`1px solid ${C.border}`,
-              borderRadius:10, padding:"16px 18px" }}>
-              <div style={{ color:C.muted, fontSize:12, marginBottom:4 }}>{s.label}</div>
-              <div style={{ fontSize:28, fontWeight:800, color:s.color }}>{s.value}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* tabs */}
-        <div style={{ display:"flex", borderBottom:`1px solid ${C.border}`, marginBottom:20 }}>
-          {["findings","compliance"].map(t => (
-            <button key={t} onClick={() => setTab(t)} style={{
-              background:"none", border:"none", color: tab===t ? C.green : C.muted,
-              padding:"10px 18px", fontSize:14, fontWeight:600, cursor:"pointer",
-              textTransform:"capitalize",
-              borderBottom: tab===t ? `2px solid ${C.green}` : "2px solid transparent",
-              marginBottom:-1, transition:"all 0.15s",
-            }}>{t}</button>
-          ))}
-        </div>
-
-        {/* findings tab */}
-        {tab === "findings" && (
-          <>
-            <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
-              {["ALL","CRITICAL","HIGH","MEDIUM","LOW"].map(f => {
-                const active = filter === f;
-                const s = f !== "ALL" ? SEV[f] : null;
-                return (
-                  <button key={f} onClick={() => setFilter(f)} style={{
-                    padding:"5px 14px", borderRadius:999, fontSize:12, fontWeight:700,
-                    cursor:"pointer", border:"1px solid",
-                    background: active ? (s ? s.bg : C.surface) : "transparent",
-                    color: active ? (s ? s.text : C.text) : C.muted,
-                    borderColor: active ? (s ? s.border : C.border) : C.dim,
-                    transition:"all 0.15s",
-                  }}>
-                    {f === "ALL" ? `All (${FINDINGS.length})` : `${f} (${counts[f]})`}
-                  </button>
-                );
-              })}
-            </div>
-            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-              {filtered.map(f => <FindingCard key={f.id} finding={f} allFindings={FINDINGS}/>)}
-            </div>
-          </>
-        )}
-
-        {/* compliance tab */}
-        {tab === "compliance" && (
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
-            <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14,
-              padding:28, textAlign:"center" }}>
-              <div style={{ color:C.muted, fontSize:12, fontWeight:700,
-                letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:18 }}>Overall Score</div>
-              <ScoreRing score={score}/>
-              <div style={{ marginTop:14, fontWeight:800, fontSize:18,
-                color: score>=80 ? C.green : score>=60 ? "#f59e0b" : "#ef4444" }}>
-                {score>=80?"Good":score>=60?"Needs Attention":"Critical Risk"}
-              </div>
-              <div style={{ color:C.muted, fontSize:12, marginTop:4 }}>{FINDINGS.length} checks performed</div>
-            </div>
-            <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-              {[
-                { name:"CIS AWS Foundations v1.4", pass:cisPass, color:"#3b82f6" },
-                { name:"SOC 2 Type II (CC Controls)", pass:soc2Pass, color:"#a78bfa" },
-              ].map(f => {
-                const pct = Math.round(f.pass/FINDINGS.length*100);
-                return (
-                  <div key={f.name} style={{ background:C.card, border:`1px solid ${C.border}`,
-                    borderRadius:14, padding:22 }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:10 }}>
-                      <span style={{ fontWeight:700, fontSize:13 }}>{f.name}</span>
-                      <span style={{ color:f.color, fontWeight:800 }}>{pct}%</span>
-                    </div>
-                    <div style={{ background:C.surface, borderRadius:99, height:7, marginBottom:10 }}>
-                      <div style={{ background:f.color, height:7, borderRadius:99,
-                        width:`${pct}%`, transition:"width 1s ease" }}/>
-                    </div>
-                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}>
-                      <span style={{ color:C.green }}>✓ {f.pass} passing</span>
-                      <span style={{ color:"#ef4444" }}>✗ {FINDINGS.length-f.pass} failing</span>
-                    </div>
-                  </div>
-                );
-              })}
-              <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:22 }}>
-                <div style={{ color:C.muted, fontSize:11, fontWeight:700,
-                  letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:12 }}>Control Domains</div>
-                {[["IAM & Access",3,4],["Network Security",2,3],["Data Protection",2,4],["Logging & Monitoring",2,3]].map(([n,fail,total]) => (
-                  <div key={n} style={{ display:"flex", justifyContent:"space-between",
-                    alignItems:"center", padding:"7px 0", borderBottom:`1px solid ${C.border}` }}>
-                    <span style={{ fontSize:13 }}>{n}</span>
-                    <div style={{ display:"flex", gap:10 }}>
-                      <span style={{ color:C.green, fontSize:12 }}>✓ {total-fail}</span>
-                      <span style={{ color:"#ef4444", fontSize:12 }}>✗ {fail}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* floating AI chat */}
-      <FloatingChat findings={FINDINGS} open={chatOpen} onToggle={() => setChatOpen(o => !o)}/>
-
-      <style>{`
-        @keyframes spin  { to { transform: rotate(360deg); } }
-        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-      `}</style>
+      ))}
     </div>
   );
 }
 
-// ── App root ───────────────────────────────────────────────────────────────
 function App() {
-  const [roleArn, setRoleArn] = useState("");
-  return roleArn
-    ? <DashboardView roleArn={roleArn} onDisconnect={() => setRoleArn("")}/>
-    : <ConnectView onConnect={setRoleArn}/>;
+  const [session, setSession] = useState(null);
+
+  return session
+    ? <DashboardView session={session} onDisconnect={() => setSession(null)} />
+    : <ConnectView onConnect={setSession} />;
 }
 
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
 
-    ReactDOM.createRoot(document.getElementById("root")).render(
-      React.createElement(App)
-    );
-  </script>
 </body>
 </html>
