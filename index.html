@@ -90,9 +90,15 @@
         errorMsg.textContent = "Login failed: " + err.message;
         errorMsg.style.display = "block";
         loginBtn.disabled = false;
-        loginBtn.textContent = "🐙 Login with GitHub";
-      }
-    });
+        loginBtn.textContent = "🐙 Login with document.getElementById("googleBtn").addEventListener("click", async () => {
+  try {
+    await signInWithPopup(auth, googleProvider);
+    // onAuthStateChanged will fire and redirect to dashboard automatically
+  } catch (err) {
+    errorMsg.textContent = "Login failed: " + err.message;
+    errorMsg.style.display = "block";
+  }
+});
   </script>
 </body>
 </html>
