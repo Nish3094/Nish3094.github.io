@@ -15,6 +15,7 @@
     ::-webkit-scrollbar-track { background: #0b1120; }
     ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
   </style>
+  
 </head>
 <body>
   <div id="root"></div>
@@ -426,6 +427,37 @@
 
           {showTerraform&&<TerraformModal finding={finding} onClose={()=>setShowTerraform(false)}/>}
         </div>
+<div class="header">
+  <h2>Dashboard</h2>
+  <button onclick="logout()" class="logout-btn">Logout</button>
+</div>
+
+<style>
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  padding: 16px 24px;
+  background: #ffffff;
+  border-bottom: 1px solid #eee;
+}
+
+.logout-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+
+  background-color: #ff4d4f;
+  color: white;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.logout-btn:hover {
+  background-color: #d9363e;
+}
+</style>
       );
     }
 
