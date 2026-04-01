@@ -83,7 +83,7 @@
       errorMsg.style.display = "none";
 
       try {
-        await signInWithPopup(auth, provider);
+        await signInWithPopup(auth, provider, googleProvider);
         // onAuthStateChanged above will fire and redirect automatically
       } catch (err) {
         console.error(err);
