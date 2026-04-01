@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -26,25 +27,41 @@
     }
     h1 { font-size: 2rem; margin-bottom: 10px; }
     p { color: #94a3b8; margin-bottom: 30px; }
-    #loginBtn {
-      padding: 14px 32px;
-      border-radius: 999px;
-      font-weight: bold;
-      font-size: 1rem;
-      background: #22c55e;
-      color: black;
-      border: none;
-      cursor: pointer;
-      transition: background 0.3s;
-    }
-    #loginBtn:hover { background: #16a34a; }
-    #loginBtn:disabled { opacity: 0.6; cursor: not-allowed; }
-    #errorMsg {
-      margin-top: 16px;
-      color: #f87171;
-      font-size: 0.9rem;
-      display: none;
-    }
+
+```
+.btn-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.auth-btn {
+  padding: 14px 32px;
+  border-radius: 999px;
+  font-weight: bold;
+  font-size: 1rem;
+  border: none;
+  cursor: pointer;
+  transition: background 0.3s, opacity 0.3s;
+  width: 220px;
+}
+.auth-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+#loginBtn  { background: #22c55e; color: black; }
+#loginBtn:hover:not(:disabled)  { background: #16a34a; }
+
+#googleBtn { background: white; color: #111; }
+#googleBtn:hover:not(:disabled) { background: #f1f5f9; }
+
+#errorMsg {
+  margin-top: 16px;
+  color: #f87171;
+  font-size: 0.9rem;
+  display: none;
+}
+```
+
   </style>
 </head>
 <body>
@@ -53,10 +70,17 @@
       <source src="https://nish3094.github.io/trademark_logo.mp4" type="video/mp4">
     </video>
     <h1>Welcome to Nishverse</h1>
-    <p>Sign in with GitHub to continue</p>
-    <button id="loginBtn">🐙 Login with GitHub</button>
-    <button id="googleBtn"> Login with Google</button>
-    <div id="errorMsg"></div>
+    <p>Sign in to continue</p>
+
+```
+<div class="btn-group">
+  <button id="loginBtn" class="auth-btn">🐙 Login with GitHub</button>
+  <button id="googleBtn" class="auth-btn">🔵 Login with Google</button>
+</div>
+
+<div id="errorMsg"></div>
+```
+
   </div>
 
   <script type="module">
@@ -66,39 +90,59 @@
       onAuthStateChanged
     } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-    const loginBtn  = document.getElementById("loginBtn");
-    const googleBtn  = document.getElementById("googleBtn")
-    const errorMsg  = document.getElementById("errorMsg");
+    const loginBtn = document.getElementById("loginBtn");
+    const googleBtn = document.getElementById("googleBtn");
+    const errorMsg = document.getElementById("errorMsg");
 
     // If already logged in, skip straight to dashboard
     onAuthStateChanged(auth, (user) => {
-      if (user) {
-        window.location.replace("/dashboard.html");
+      if (user) window.location.replace("/dashboard.html");
+    });
+
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.style.display = "block";
+    }
+
+    function resetButtons() {
+      loginBtn.disabled = false;
+      loginBtn.textContent = "🐙 Login with GitHub";
+      googleBtn.disabled = false;
+      googleBtn.textContent = "🔵 Login with Google";
+    }
+
+    // GitHub login
+    loginBtn.addEventListener("click", async () => {
+      loginBtn.disabled = true;
+      googleBtn.disabled = true;
+      loginBtn.textContent = "Opening GitHub...";
+      errorMsg.style.display = "none";
+      try {
+        await signInWithPopup(auth, provider);
+        // onAuthStateChanged fires and redirects automatically
+      } catch (err) {
+        console.error(err);
+        showError("Login failed: " + err.message);
+        resetButtons();
       }
     });
 
-    loginBtn.addEventListener("click", async () => {
+    // Google login
+    googleBtn.addEventListener("click", async () => {
+      googleBtn.disabled = true;
       loginBtn.disabled = true;
-      loginBtn.textContent = "Opening GitHub...";
+      googleBtn.textContent = "Opening Google...";
       errorMsg.style.display = "none";
-
       try {
-        await signInWithPopup(auth, provider);
-        // onAuthStateChanged above will fire and redirect automatically
+        await signInWithPopup(auth, googleProvider);
+        // onAuthStateChanged fires and redirects automatically
       } catch (err) {
         console.error(err);
-        errorMsg.textContent = "Login failed: " + err.message;
-        errorMsg.style.display = "block";
-        loginBtn.disabled = false;
-        loginBtn.textContent = "🐙 Login with document.getElementById("googleBtn").addEventListener("click", async () => {
-  try {
-    await signInWithPopup(auth, googleProvider);
-    // onAuthStateChanged will fire and redirect to dashboard automatically
-  } catch (err) {
-    errorMsg.textContent = "Login failed: " + err.message;
-    errorMsg.style.display = "block";
-  }
-});
+        showError("Login failed: " + err.message);
+        resetButtons();
+      }
+    });
   </script>
+
 </body>
 </html>
